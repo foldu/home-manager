@@ -19,10 +19,11 @@ let
           "[${concatStringsSep ", " (map formatValue v)}]"
         else
           builtins.toString v;
-    in if builtins.isAttrs v then
-      concatStringsSep "\n" (mapAttrsToList (formatLine "${o}${n}.") v)
-    else
-      "${o}${n} = ${formatValue v}";
+    in
+      if builtins.isAttrs v then
+        concatStringsSep "\n" (mapAttrsToList (formatLine "${o}${n}.") v)
+      else
+        "${o}${n} = ${formatValue v}";
 
   formatDictLine = o: n: v: ''${o}['${n}'] = "${v}"'';
 
@@ -30,15 +31,24 @@ let
     let
       formatKeyBinding = m: k: c:
         ''config.bind("${k}", "${escape [ ''"'' ] c}", mode="${m}")'';
-    in concatStringsSep "\n" (mapAttrsToList (formatKeyBinding m) b);
+    in
+      concatStringsSep "\n" (mapAttrsToList (formatKeyBinding m) b);
 
-in {
+in
+{
   options.programs.qutebrowser = {
     enable = mkEnableOption "qutebrowser";
 
+    package = mkOption {
+      type = types.package;
+      default = pkgs.qutebrowser;
+      defaultText = literalExample "pkgs.qutebrowser";
+      description = "Qutebrowser package to install.";
+    };
+
     aliases = mkOption {
       type = types.attrsOf types.str;
-      default = { };
+      default = {};
       description = ''
         Aliases for commands.
       '';
@@ -46,7 +56,7 @@ in {
 
     searchEngines = mkOption {
       type = types.attrsOf types.str;
-      default = { };
+      default = {};
       description = ''
         Search engines that can be used via the address bar. Maps a search
         engine name (such as <literal>DEFAULT</literal>, or
@@ -72,7 +82,7 @@ in {
 
     settings = mkOption {
       type = types.attrs;
-      default = { };
+      default = {};
       description = ''
         Options to add to qutebrowser <filename>config.py</filename> file.
         See <link xlink:href="https://qutebrowser.org/doc/help/settings.html"/>
@@ -94,7 +104,7 @@ in {
 
     keyMappings = mkOption {
       type = types.attrsOf types.str;
-      default = { };
+      default = {};
       description = ''
         This setting can be used to map keys to other keys. When the key used
         as dictionary-key is pressed, the binding for the key used as
@@ -115,7 +125,7 @@ in {
 
     keyBindings = mkOption {
       type = types.attrsOf (types.attrsOf types.str);
-      default = { };
+      default = {};
       description = ''
         Key bindings mapping keys to commands in different modes. This setting
         is a dictionary containing mode names and dictionaries mapping keys to
@@ -246,16 +256,18 @@ in {
   };
 
   config = mkIf cfg.enable {
-    home.packages = [ pkgs.qutebrowser ];
+    home.packages = [ cfg.package ];
 
-    xdg.configFile."qutebrowser/config.py".text = concatStringsSep "\n" ([ ]
+    xdg.configFile."qutebrowser/config.py".text = concatStringsSep "\n" (
+      []
       ++ mapAttrsToList (formatLine "c.") cfg.settings
       ++ mapAttrsToList (formatDictLine "c.aliases") cfg.aliases
       ++ mapAttrsToList (formatDictLine "c.url.searchengines") cfg.searchEngines
       ++ mapAttrsToList (formatDictLine "c.bindings.key_mappings")
-      cfg.keyMappings
+        cfg.keyMappings
       ++ optional (!cfg.enableDefaultBindings) [ "c.bindings.default = {}" ]
       ++ mapAttrsToList formatKeyBindings cfg.keyBindings
-      ++ optional (cfg.extraConfig != "") cfg.extraConfig);
+      ++ optional (cfg.extraConfig != "") cfg.extraConfig
+    );
   };
 }
